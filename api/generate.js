@@ -22,9 +22,11 @@ export default async function handler(req, res) {
         model: 'llama-3.3-70b-versatile',
         temperature: 0.1,
         max_tokens: 2000,
-        response_format: { type: 'json_object' },
         messages: [
-          { role: 'system', content: (system || '') + '\nYou must respond with valid JSON only.' },
+          {
+            role: 'system',
+            content: `${system || ''}\n\nCRITICAL: Your entire response must be ONLY a valid JSON object. Start your response with { and end with }. No text before or after. No explanations. No markdown. Just the raw JSON object.`
+          },
           ...messages
         ]
       })
