@@ -1,4 +1,6 @@
-export default async function handler(req, res) {
+const https = require('https');
+
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -8,31 +10,12 @@ export default async function handler(req, res) {
   const GROQ_API_KEY = process.env.GROQ_API_KEY;
   if (!GROQ_API_KEY) return res.status(500).json({ error: 'GROQ_API_KEY not set' });
 
-  const { type, notes } = req.body;
+  const { type, notes, question, answer, student } = req.body;
 
   const prompts = {
-    flashcards: `You are a study assistant. Using the notes below, create 10 flashcards.
-You MUST respond with ONLY this JSON and nothing else:
-{"flashcards":[{"front":"question","back":"answer"},{"front":"question","back":"answer"}]}
-
-Notes:
-${notes}`,
-
-    questions: `You are an exam question generator. Using the notes below, create 3 multiple choice and 3 short answer questions.
-You MUST respond with ONLY this JSON and nothing else:
-{"questions":[{"type":"mcq","question":"q","options":["A. a","B. b","C. c","D. d"],"correct":0,"explanation":"e"},{"type":"short","question":"q","keywords":["k1","k2"],"modelAnswer":"a"}]}
-
-Notes:
-${notes}`,
-
-    blurt: `You are a study tutor. Score this student response.
-You MUST respond with ONLY this JSON and nothing else:
-{"score":"good","feedback":"your feedback here"}
-score must be exactly "good", "ok", or "bad".
-
-Question: ${req.body.question}
-Model answer: ${req.body.answer}
-Student wrote: ${req.body.student}`
+    flashcards: `Create 10 flashcards from these notes. Respond with ONLY this JSON:\n{"flashcards":[{"front":"question","back":"answer"}]}\n\nNotes:\n${notes}`,
+    questions: `Create 3 multiple choice and 3 short answer exam questions from these notes. Respond with ONLY this JSON:\n{"questions":[{"type":"mcq","question":"q","options":["A. a","B. b","C. c","D. d"],"correct":0,"explanation":"e"},{"type":"short","question":"q","keywords":["k1","k2"],"modelAnswer":"a"}]}\n\nNotes:\n${notes}`,
+    blurt: `Score this student response. Respond with ONLY this JSON:\n{"score":"good","feedback":"feedback here"}\nscore must be "good", "ok", or "bad".\n\nQuestion: ${question}\nModel answer: ${answer}\nStudent wrote: ${student}`
   };
 
   const prompt = prompts[type];
@@ -50,9 +33,7 @@ Student wrote: ${req.body.student}`
         temperature: 0.1,
         max_tokens: 2000,
         response_format: { type: 'json_object' },
-        messages: [
-          { role: 'user', content: prompt }
-        ]
+        messages: [{ role: 'user', content: prompt }]
       })
     });
 
