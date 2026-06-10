@@ -19,13 +19,14 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'mixtral-8x7b-32768',
         temperature: 0.1,
         max_tokens: 2000,
+        response_format: { type: 'json_object' },
         messages: [
           {
             role: 'system',
-            content: `${system || ''}\n\nCRITICAL: Your entire response must be ONLY a valid JSON object. Start your response with { and end with }. No text before or after. No explanations. No markdown. Just the raw JSON object.`
+            content: (system || '') + '\nRespond with JSON only.'
           },
           ...messages
         ]

@@ -364,8 +364,8 @@ async function generateFlashcards(notes) {
 
 async function generateQuestions(notes) {
   const result = await callAI(
-    'You are an exam question generator. Return ONLY valid JSON.',
-    `Create 6 exam questions from these notes: 3 multiple choice and 3 short answer.\nMultiple choice format: {"type":"mcq","question":"...","options":["A. ...","B. ...","C. ...","D. ..."],"correct":0,"explanation":"..."}\nShort answer format: {"type":"short","question":"...","keywords":["word1","word2","word3"],"modelAnswer":"..."}\nReturn: {"questions":[mcq1,mcq2,mcq3,short1,short2,short3]}\n\nNotes:\n${notes}`
+    'You are an exam question generator that only responds in JSON.',
+    `Create 6 exam questions from these notes. Respond with this exact JSON structure: {"questions":[{"type":"mcq","question":"...","options":["A. ...","B. ...","C. ...","D. ..."],"correct":0,"explanation":"..."},{"type":"short","question":"...","keywords":["word1","word2"],"modelAnswer":"..."}]}\nInclude 3 mcq and 3 short type questions.\n\nNotes:\n${notes}`
   );
   return result.questions || result;
 }
