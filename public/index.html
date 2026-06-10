@@ -299,11 +299,12 @@ function clearError() { document.getElementById('errorBanner').classList.remove(
 function setProgress(msg) { document.getElementById('genProgress').textContent = msg; }
 
 // ── API CALL (calls our own /api/generate proxy) ──
-async function callAI(system, userContent) {
+async function callAPI(type, extras) {
+  const notes = extractedText.slice(0, 4000);
   const res = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ system, messages: [{ role: 'user', content: userContent }] })
+    body: JSON.stringify({ type, notes, ...extras })
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
@@ -312,14 +313,11 @@ async function callAI(system, userContent) {
   const data = await res.json();
   let text = data.content || '';
   text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-  try {
-    return JSON.parse(text);
-  } catch {
-    const arrMatch = text.match(/\[[\s\S]*\]/);
-    const objMatch = text.match(/\{[\s\S]*\}/);
-    const candidate = arrMatch ? arrMatch[0] : objMatch ? objMatch[0] : null;
-    if (!candidate) throw new Error('Could not parse AI response — please try again');
-    return JSON.parse(candidate);
+  try { return JSON.parse(text); }
+  catch {
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('Could not parse AI response — please try again');
+    return JSON.parse(m[0]);
   }
 }
 // ── GENERATE ──
@@ -355,19 +353,13 @@ function setLoading(on) {
 }
 
 async function generateFlashcards(notes) {
-  const result = await callAI(
-    'You are a study assistant that only responds in JSON.',
-    `Create 10 flashcards from these notes. You MUST respond with this exact JSON structure and nothing else: {"flashcards":[{"front":"question here","back":"answer here"}]}\n\nNotes:\n${notes}`
-  );
-  return result.flashcards || result;
+  const result = await callAPI('flashcards', {});
+  return result.flashcards || [];
 }
 
 async function generateQuestions(notes) {
-  const result = await callAI(
-    'You are an exam question generator that only responds in JSON.',
-    `Create 6 exam questions from these notes. You MUST respond with this exact JSON structure and nothing else: {"questions":[{"type":"mcq","question":"...","options":["A. ...","B. ...","C. ...","D. ..."],"correct":0,"explanation":"..."},{"type":"short","question":"...","keywords":["word1","word2"],"modelAnswer":"..."}]}\nMake 3 mcq and 3 short questions.\n\nNotes:\n${notes}`
-  );
-  return result.questions || result;
+  const result = await callAPI('questions', {});
+  return result.questions || [];
 }
 
 // ── FLASHCARDS ──
@@ -435,10 +427,11 @@ async function checkBlurt() {
   fb.className = 'blurt-feedback show ok'; fb.textContent = 'Checking…';
   const card = flashcards[currentCard];
   try {
-    const result = await callAI(
-      'You are a study tutor. Return ONLY valid JSON — no extra text.',
-      `Flashcard question: "${card.front}"\nModel answer: "${card.back}"\nStudent wrote: "${userText}"\n\nScore the student. Return ONLY: {"score":"good","feedback":"2 sentences on what they got right, what they missed, and one tip"}\nscore must be "good", "ok", or "bad".`
-    );
+    const result = await callAPI('blurt', {
+      question: card.front,
+      answer: card.back,
+      student: userText
+    });
     fb.className = `blurt-feedback show ${result.score}`;
     fb.textContent = (result.score==='good'?'✅':result.score==='ok'?'⚠️':'❌') + ' ' + result.feedback;
   } catch {
