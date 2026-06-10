@@ -316,9 +316,12 @@ async function callAI(system, userContent) {
   let text = data.content || '';
   text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
   // Extract the first JSON array or object found
-  const match = text.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
-  if (!match) throw new Error('No JSON found in AI response');
-  return JSON.parse(match[0]);
+  const arrMatch = text.match(/\[[\s\S]*\]/);
+  const objMatch = text.match(/\{[\s\S]*\}/);
+  const candidate = arrMatch ? arrMatch[0] : objMatch ? objMatch[0] : null;
+  if (!candidate) throw new Error('Could not parse AI response — try generating again');
+  try { return JSON.parse(candidate); }
+  catch { try { return JSON.parse(text); } catch { throw new Error('Could not parse AI response — try generating again'); } }
 }
 
 // ── GENERATE ──
