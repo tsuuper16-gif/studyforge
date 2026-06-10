@@ -1,26 +1,15 @@
 export default async function handler(req, res) {
-  // Allow requests from any origin (your own site)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const GROQ_API_KEY = process.env.GROQ_API_KEY;
-  if (!GROQ_API_KEY) {
-    return res.status(500).json({ error: 'GROQ_API_KEY environment variable is not set. Add it in your Vercel project settings.' });
-  }
+  if (!GROQ_API_KEY) return res.status(500).json({ error: 'GROQ_API_KEY not set' });
 
   const { messages, system } = req.body;
-  if (!messages) {
-    return res.status(400).json({ error: 'Missing messages in request body' });
-  }
 
   try {
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -30,12 +19,14 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',   // fast, free, great for structured JSON
-        temperature: 0.3,
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.1,
         max_tokens: 2000,
-        messages: system
-          ? [{ role: 'system', content: system }, ...messages]
-          : messages
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: (system || '') + '\nYou must respond with valid JSON only.' },
+          ...messages
+        ]
       })
     });
 

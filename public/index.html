@@ -357,17 +357,19 @@ function setLoading(on) {
 }
 
 async function generateFlashcards(notes) {
-  return callAI(
-    'You are a study assistant. Return ONLY a valid JSON array — no markdown, no explanation, nothing else before or after the array.',
-    `Create exactly 10 flashcards from these notes. Return a JSON array where each item has "front" (a question or term, max 15 words) and "back" (the answer, max 60 words).\nFormat: [{"front":"...","back":"..."},...]\n\nNotes:\n${notes}`
+  const result = await callAI(
+    'You are a study assistant. Return ONLY valid JSON.',
+    `Create exactly 10 flashcards from these notes. Return a JSON object like: {"flashcards":[{"front":"question","back":"answer"}]}\n\nNotes:\n${notes}`
   );
+  return result.flashcards || result;
 }
 
 async function generateQuestions(notes) {
-  return callAI(
-    'You are an exam question generator. Return ONLY a valid JSON array — no markdown, no explanation, nothing else before or after the array.',
-    `Create 6 exam questions from these notes: 3 multiple choice and 3 short answer.\nMultiple choice: {"type":"mcq","question":"...","options":["A. text","B. text","C. text","D. text"],"correct":0,"explanation":"..."}\nShort answer: {"type":"short","question":"...","keywords":["word1","word2","word3"],"modelAnswer":"..."}\n"correct" is the 0-based index of the right option.\nReturn: [mcq, mcq, mcq, short, short, short]\n\nNotes:\n${notes}`
+  const result = await callAI(
+    'You are an exam question generator. Return ONLY valid JSON.',
+    `Create 6 exam questions from these notes: 3 multiple choice and 3 short answer.\nMultiple choice format: {"type":"mcq","question":"...","options":["A. ...","B. ...","C. ...","D. ..."],"correct":0,"explanation":"..."}\nShort answer format: {"type":"short","question":"...","keywords":["word1","word2","word3"],"modelAnswer":"..."}\nReturn: {"questions":[mcq1,mcq2,mcq3,short1,short2,short3]}\n\nNotes:\n${notes}`
   );
+  return result.questions || result;
 }
 
 // ── FLASHCARDS ──
