@@ -310,17 +310,17 @@ async function callAI(system, userContent) {
     throw new Error(err.error || 'API error');
   }
   const data = await res.json();
-  console.log('RAW AI RESPONSE:', data);
   let text = data.content || '';
-  console.log('TEXT:', text);
   text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-  const arrMatch = text.match(/\[[\s\S]*\]/);
-  const objMatch = text.match(/\{[\s\S]*\}/);
-  const candidate = arrMatch ? arrMatch[0] : objMatch ? objMatch[0] : null;
-  console.log('CANDIDATE:', candidate);
-  if (!candidate) throw new Error('No JSON found — check browser console for details');
-  try { return JSON.parse(candidate); }
-  catch(e) { throw new Error('JSON parse failed: ' + e.message); }
+  try {
+    return JSON.parse(text);
+  } catch {
+    const arrMatch = text.match(/\[[\s\S]*\]/);
+    const objMatch = text.match(/\{[\s\S]*\}/);
+    const candidate = arrMatch ? arrMatch[0] : objMatch ? objMatch[0] : null;
+    if (!candidate) throw new Error('Could not parse AI response — please try again');
+    return JSON.parse(candidate);
+  }
 }
 // ── GENERATE ──
 document.getElementById('generateBtn').addEventListener('click', async () => {
@@ -356,8 +356,8 @@ function setLoading(on) {
 
 async function generateFlashcards(notes) {
   const result = await callAI(
-    'You are a study assistant. Return ONLY valid JSON.',
-    `Create exactly 10 flashcards from these notes. Return a JSON object like: {"flashcards":[{"front":"question","back":"answer"}]}\n\nNotes:\n${notes}`
+    'You are a study assistant that only responds in JSON.',
+    `Create 10 flashcards from these notes. You MUST respond with this exact JSON structure and nothing else: {"flashcards":[{"front":"question here","back":"answer here"}]}\n\nNotes:\n${notes}`
   );
   return result.flashcards || result;
 }
@@ -365,7 +365,7 @@ async function generateFlashcards(notes) {
 async function generateQuestions(notes) {
   const result = await callAI(
     'You are an exam question generator that only responds in JSON.',
-    `Create 6 exam questions from these notes. Respond with this exact JSON structure: {"questions":[{"type":"mcq","question":"...","options":["A. ...","B. ...","C. ...","D. ..."],"correct":0,"explanation":"..."},{"type":"short","question":"...","keywords":["word1","word2"],"modelAnswer":"..."}]}\nInclude 3 mcq and 3 short type questions.\n\nNotes:\n${notes}`
+    `Create 6 exam questions from these notes. You MUST respond with this exact JSON structure and nothing else: {"questions":[{"type":"mcq","question":"...","options":["A. ...","B. ...","C. ...","D. ..."],"correct":0,"explanation":"..."},{"type":"short","question":"...","keywords":["word1","word2"],"modelAnswer":"..."}]}\nMake 3 mcq and 3 short questions.\n\nNotes:\n${notes}`
   );
   return result.questions || result;
 }
