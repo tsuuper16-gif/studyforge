@@ -63,7 +63,7 @@ Now output the JSON object:`;
         'Authorization': `Bearer ${GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'llama-3.1-70b-versatile',
+        model: 'deepseek-r1-distill-llama-70b',
         temperature: 0.1,
         max_tokens: 2000,
         messages: [
