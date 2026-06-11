@@ -79,7 +79,9 @@ Now output the JSON object:`;
     }
 
     const data = await groqRes.json();
-    const content = data.choices?.[0]?.message?.content ?? '';
+    let content = data.choices?.[0]?.message?.content ?? '';
+    // DeepSeek wraps responses in <think> tags — strip them
+    content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     return res.status(200).json({ content });
 
   } catch (err) {
