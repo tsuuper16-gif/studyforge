@@ -10,14 +10,30 @@ export default async function handler(req, res) {
 
   const { type, notes, question, answer, student } = req.body;
 
-  const prompts = {
-    flashcards: `Create 10 flashcards from these notes. Respond with ONLY this JSON:\n{"flashcards":[{"front":"question","back":"answer"}]}\n\nNotes:\n${notes}`,
-    questions: `Create 3 multiple choice and 3 short answer exam questions from these notes. Respond with ONLY this JSON:\n{"questions":[{"type":"mcq","question":"q","options":["A. a","B. b","C. c","D. d"],"correct":0,"explanation":"e"},{"type":"short","question":"q","keywords":["k1","k2"],"modelAnswer":"a"}]}\n\nNotes:\n${notes}`,
-    blurt: `Score this student response. Respond with ONLY this JSON:\n{"score":"good","feedback":"feedback here"}\nscore must be "good", "ok", or "bad".\n\nQuestion: ${question}\nModel answer: ${answer}\nStudent wrote: ${student}`
-  };
+  let messages;
 
-  const prompt = prompts[type];
-  if (!prompt) return res.status(400).json({ error: 'Invalid type' });
+  if (type === 'flashcards') {
+    messages = [
+      { role: 'system', content: 'You are a flashcard generator. You only output valid JSON. Never summarise. Never repeat yourself. Always follow the exact format given.' },
+      { role: 'user', content: 'Here are my study notes:' },
+      { role: 'assistant', content: 'OK, I have read the notes. What would you like me to create?' },
+      { role: 'user', content: `Generate 10 flashcards from those notes. Reply with ONLY this JSON format, nothing else:\n{"flashcards":[{"front":"What is X?","back":"X is..."},{"front":"Define Y","back":"Y means..."}]}\n\nNotes:\n${(notes || '').slice(0, 3000)}` }
+    ];
+  } else if (type === 'questions') {
+    messages = [
+      { role: 'system', content: 'You are an exam question generator. You only output valid JSON. Never summarise. Never repeat yourself. Always follow the exact format given.' },
+      { role: 'user', content: 'Here are my study notes:' },
+      { role: 'assistant', content: 'OK, I have read the notes. What would you like me to create?' },
+      { role: 'user', content: `Generate 3 multiple choice and 3 short answer questions from those notes. Reply with ONLY this JSON format, nothing else:\n{"questions":[{"type":"mcq","question":"What is X?","options":["A. one","B. two","C. three","D. four"],"correct":0,"explanation":"Because..."},{"type":"short","question":"Explain Y","keywords":["key1","key2"],"modelAnswer":"Y is..."}]}\n\nNotes:\n${(notes || '').slice(0, 3000)}` }
+    ];
+  } else if (type === 'blurt') {
+    messages = [
+      { role: 'system', content: 'You are a study tutor. You only output valid JSON. Always follow the exact format given.' },
+      { role: 'user', content: `Score this student answer. Reply with ONLY this JSON, nothing else:\n{"score":"good","feedback":"They got X right but missed Y. Tip: Z"}\nscore must be exactly "good", "ok", or "bad".\n\nQuestion: ${question}\nModel answer: ${answer}\nStudent wrote: ${student}` }
+    ];
+  } else {
+    return res.status(400).json({ error: 'Invalid type' });
+  }
 
   try {
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -30,7 +46,7 @@ export default async function handler(req, res) {
         model: 'llama3-8b-8192',
         temperature: 0.1,
         max_tokens: 2000,
-        messages: [{ role: 'user', content: prompt }]
+        messages
       })
     });
 
