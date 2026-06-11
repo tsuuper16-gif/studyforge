@@ -10,27 +10,47 @@ export default async function handler(req, res) {
 
   const { type, notes, question, answer, student } = req.body;
 
-  let messages;
+  let systemPrompt, userPrompt;
 
   if (type === 'flashcards') {
-    messages = [
-      { role: 'system', content: 'You are a flashcard generator. You only output valid JSON. Never summarise. Never repeat yourself. Always follow the exact format given.' },
-      { role: 'user', content: 'Here are my study notes:' },
-      { role: 'assistant', content: 'OK, I have read the notes. What would you like me to create?' },
-      { role: 'user', content: `Generate 10 flashcards from those notes. Reply with ONLY this JSON format, nothing else:\n{"flashcards":[{"front":"What is X?","back":"X is..."},{"front":"Define Y","back":"Y means..."}]}\n\nNotes:\n${(notes || '').slice(0, 3000)}` }
-    ];
+    systemPrompt = `You are a JSON API. You output ONLY raw JSON. No prose, no markdown, no explanation.`;
+    userPrompt = `Return a JSON object with a "flashcards" array. Each item has "front" (a question) and "back" (the answer). Make exactly 10 items based on these notes.
+
+Example of required output format:
+{"flashcards":[{"front":"What is an element?","back":"A substance made of one type of atom that cannot be broken down further."},{"front":"What is a compound?","back":"A substance made of two or more different atoms chemically joined together."}]}
+
+Study notes to use:
+${(notes || '').slice(0, 2500)}
+
+Now output the JSON object:`;
+
   } else if (type === 'questions') {
-    messages = [
-      { role: 'system', content: 'You are an exam question generator. You only output valid JSON. Never summarise. Never repeat yourself. Always follow the exact format given.' },
-      { role: 'user', content: 'Here are my study notes:' },
-      { role: 'assistant', content: 'OK, I have read the notes. What would you like me to create?' },
-      { role: 'user', content: `Generate 3 multiple choice and 3 short answer questions from those notes. Reply with ONLY this JSON format, nothing else:\n{"questions":[{"type":"mcq","question":"What is X?","options":["A. one","B. two","C. three","D. four"],"correct":0,"explanation":"Because..."},{"type":"short","question":"Explain Y","keywords":["key1","key2"],"modelAnswer":"Y is..."}]}\n\nNotes:\n${(notes || '').slice(0, 3000)}` }
-    ];
+    systemPrompt = `You are a JSON API. You output ONLY raw JSON. No prose, no markdown, no explanation.`;
+    userPrompt = `Return a JSON object with a "questions" array containing exactly 6 items: 3 multiple choice and 3 short answer, based on these notes.
+
+Example of required output format:
+{"questions":[{"type":"mcq","question":"What is the law of conservation of mass?","options":["A. Matter can be created","B. Matter cannot be created or destroyed","C. Mass increases in reactions","D. Atoms are destroyed"],"correct":1,"explanation":"Matter cannot be created or destroyed in a chemical reaction."},{"type":"short","question":"Define an isotope.","keywords":["protons","neutrons","same element"],"modelAnswer":"An isotope is an atom of the same element with the same number of protons but a different number of neutrons."}]}
+
+Study notes to use:
+${(notes || '').slice(0, 2500)}
+
+Now output the JSON object:`;
+
   } else if (type === 'blurt') {
-    messages = [
-      { role: 'system', content: 'You are a study tutor. You only output valid JSON. Always follow the exact format given.' },
-      { role: 'user', content: `Score this student answer. Reply with ONLY this JSON, nothing else:\n{"score":"good","feedback":"They got X right but missed Y. Tip: Z"}\nscore must be exactly "good", "ok", or "bad".\n\nQuestion: ${question}\nModel answer: ${answer}\nStudent wrote: ${student}` }
-    ];
+    systemPrompt = `You are a JSON API. You output ONLY raw JSON. No prose, no markdown, no explanation.`;
+    userPrompt = `Return a JSON object scoring a student answer.
+
+Example of required output format:
+{"score":"good","feedback":"You correctly identified X and Y. You missed Z. Tip: remember that..."}
+
+score must be exactly one of: "good", "ok", "bad"
+
+Question: ${question}
+Model answer: ${answer}
+Student wrote: ${student}
+
+Now output the JSON object:`;
+
   } else {
     return res.status(400).json({ error: 'Invalid type' });
   }
@@ -43,10 +63,13 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'llama3-8b-8192',
+        model: 'llama-3.1-70b-versatile',
         temperature: 0.1,
         max_tokens: 2000,
-        messages
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ]
       })
     });
 
