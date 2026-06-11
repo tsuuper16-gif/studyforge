@@ -27,10 +27,9 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'mixtral-8x7b-32768',
+        model: 'llama3-8b-8192',
         temperature: 0.1,
         max_tokens: 2000,
-        response_format: { type: 'json_object' },
         messages: [{ role: 'user', content: prompt }]
       })
     });
