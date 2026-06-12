@@ -349,19 +349,31 @@ async function callAPI(type, extra = {}) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type, notes, ...extra })
   });
+
   const data = await res.json();
+
+  // Surface any server-side error message directly
   if (!res.ok) throw new Error(data.error || 'API request failed');
 
+  // data.content is already validated JSON string from the server
   let raw = (data.content || '').trim();
 
-  // strip any leftover think tags
+  // Belt-and-suspenders: strip any stray think tags
   raw = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
-  // find outermost { }
-  const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
-  if (s === -1 || e === -1 || e <= s) throw new Error('AI returned an invalid response — please try again');
+  if (!raw) throw new Error('No content returned from AI — please try again');
 
-  return JSON.parse(raw.slice(s, e + 1));
+  // Try direct parse first (server already validated it)
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Fallback: find outermost { }
+    const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
+    if (s === -1 || e === -1 || e <= s) {
+      throw new Error('AI returned an invalid response — please try again');
+    }
+    return JSON.parse(raw.slice(s, e + 1));
+  }
 }
 
 function esc(s) {

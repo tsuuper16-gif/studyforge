@@ -11,7 +11,6 @@ export default async function handler(req, res) {
 
   const { type, notes, question, answer, student } = req.body || {};
 
-  // Each prompt explicitly asks for JSON and gives a concrete example
   let userMessage;
 
   if (type === "flashcards") {
@@ -76,18 +75,41 @@ Student wrote: ${student || ""}`;
       })
     });
 
+    const data = await groqRes.json();
+
+    // Guard: Groq returned an error object instead of choices
     if (!groqRes.ok) {
-      const errText = await groqRes.text();
-      return res.status(groqRes.status).json({ error: errText });
+      const detail = data?.error?.message || JSON.stringify(data);
+      return res.status(groqRes.status).json({ error: `Groq API error: ${detail}` });
     }
 
-    const data = await groqRes.json();
-    let content = data.choices?.[0]?.message?.content ?? "";
+    // Guard: unexpected response shape
+    if (!data.choices || !data.choices[0]) {
+      return res.status(500).json({ error: `Groq returned no choices. Full response: ${JSON.stringify(data)}` });
+    }
 
-    // Strip any <think>...</think> blocks just in case
+    let content = data.choices[0].message?.content ?? "";
+
+    // Strip any <think>...</think> blocks
     content = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 
-    // Return the raw content string — the frontend will parse it
+    // Guard: empty content
+    if (!content) {
+      return res.status(500).json({ error: "Groq returned empty content. Check your API key and model availability." });
+    }
+
+    // Guard: validate it's actually JSON before sending to frontend
+    try {
+      JSON.parse(content);
+    } catch {
+      // Try to extract JSON from the string as a last resort
+      const s = content.indexOf("{"), e = content.lastIndexOf("}");
+      if (s === -1 || e === -1 || e <= s) {
+        return res.status(500).json({ error: `Model did not return valid JSON. Got: ${content.slice(0, 200)}` });
+      }
+      content = content.slice(s, e + 1);
+    }
+
     return res.status(200).json({ content });
 
   } catch (err) {
