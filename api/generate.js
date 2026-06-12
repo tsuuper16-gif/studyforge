@@ -1,87 +1,93 @@
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  const GROQ_API_KEY = process.env.GROQ_API_KEY;
-  if (!GROQ_API_KEY) return res.status(500).json({ error: 'GROQ_API_KEY not set' });
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST")    return res.status(405).json({ error: "Method not allowed" });
 
-  const { type, notes, question, answer, student } = req.body;
+  const KEY = process.env.GROQ_API_KEY;
+  if (!KEY) return res.status(500).json({ error: "GROQ_API_KEY is not configured in Vercel environment variables." });
 
-  let systemPrompt, userPrompt;
+  const { type, notes, question, answer, student } = req.body || {};
 
-  if (type === 'flashcards') {
-    systemPrompt = `You are a JSON API. You output ONLY raw JSON. No prose, no markdown, no explanation.`;
-    userPrompt = `Return a JSON object with a "flashcards" array. Each item has "front" (a question) and "back" (the answer). Make exactly 10 items based on these notes.
+  // Each prompt explicitly asks for JSON and gives a concrete example
+  let userMessage;
 
-Example of required output format:
-{"flashcards":[{"front":"What is an element?","back":"A substance made of one type of atom that cannot be broken down further."},{"front":"What is a compound?","back":"A substance made of two or more different atoms chemically joined together."}]}
+  if (type === "flashcards") {
+    userMessage = `Create 10 flashcards from the study notes below.
+Respond with ONLY a JSON object. No thinking, no explanation, no markdown.
 
-Study notes to use:
-${(notes || '').slice(0, 2500)}
+Required format:
+{"flashcards":[{"front":"What is an element?","back":"A pure substance made of one type of atom only."},{"front":"What is a compound?","back":"Two or more elements chemically bonded together."}]}
 
-Now output the JSON object:`;
+Study notes:
+${(notes || "").slice(0, 2000)}`;
 
-  } else if (type === 'questions') {
-    systemPrompt = `You are a JSON API. You output ONLY raw JSON. No prose, no markdown, no explanation.`;
-    userPrompt = `Return a JSON object with a "questions" array containing exactly 6 items: 3 multiple choice and 3 short answer, based on these notes.
+  } else if (type === "questions") {
+    userMessage = `Create 6 exam questions (3 multiple choice, 3 short answer) from the study notes below.
+Respond with ONLY a JSON object. No thinking, no explanation, no markdown.
 
-Example of required output format:
-{"questions":[{"type":"mcq","question":"What is the law of conservation of mass?","options":["A. Matter can be created","B. Matter cannot be created or destroyed","C. Mass increases in reactions","D. Atoms are destroyed"],"correct":1,"explanation":"Matter cannot be created or destroyed in a chemical reaction."},{"type":"short","question":"Define an isotope.","keywords":["protons","neutrons","same element"],"modelAnswer":"An isotope is an atom of the same element with the same number of protons but a different number of neutrons."}]}
+Required format:
+{"questions":[{"type":"mcq","question":"What is X?","options":["A. one","B. two","C. three","D. four"],"correct":1,"explanation":"Because two is correct."},{"type":"short","question":"Define Y.","keywords":["atom","bond"],"modelAnswer":"Y is a bond between atoms."}]}
 
-Study notes to use:
-${(notes || '').slice(0, 2500)}
+Study notes:
+${(notes || "").slice(0, 2000)}`;
 
-Now output the JSON object:`;
+  } else if (type === "blurt") {
+    userMessage = `Score the student answer below.
+Respond with ONLY a JSON object. No thinking, no explanation, no markdown.
 
-  } else if (type === 'blurt') {
-    systemPrompt = `You are a JSON API. You output ONLY raw JSON. No prose, no markdown, no explanation.`;
-    userPrompt = `Return a JSON object scoring a student answer.
+Required format:
+{"score":"good","feedback":"You correctly identified X. You missed Y. Tip: remember Z."}
 
-Example of required output format:
-{"score":"good","feedback":"You correctly identified X and Y. You missed Z. Tip: remember that..."}
+score must be exactly one of: "good" "ok" "bad"
 
-score must be exactly one of: "good", "ok", "bad"
-
-Question: ${question}
-Model answer: ${answer}
-Student wrote: ${student}
-
-Now output the JSON object:`;
+Question: ${question || ""}
+Model answer: ${answer || ""}
+Student wrote: ${student || ""}`;
 
   } else {
-    return res.status(400).json({ error: 'Invalid type' });
+    return res.status(400).json({ error: "Invalid type. Must be flashcards, questions, or blurt." });
   }
 
   try {
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
+    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${KEY}`
       },
       body: JSON.stringify({
-        model: 'deepseek-r1-distill-llama-70b',
+        model: "llama-3.3-70b-versatile",
         temperature: 0.1,
-        max_tokens: 2000,
+        max_tokens: 1500,
+        response_format: { type: "json_object" },
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          {
+            role: "system",
+            content: "You are a JSON API. You output ONLY valid JSON objects. No prose, no markdown, no code fences, no thinking out loud."
+          },
+          {
+            role: "user",
+            content: userMessage
+          }
         ]
       })
     });
 
     if (!groqRes.ok) {
-      const err = await groqRes.text();
-      return res.status(groqRes.status).json({ error: err });
+      const errText = await groqRes.text();
+      return res.status(groqRes.status).json({ error: errText });
     }
 
     const data = await groqRes.json();
-    let content = data.choices?.[0]?.message?.content ?? '';
-    // DeepSeek wraps responses in <think> tags — strip them
-    content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    let content = data.choices?.[0]?.message?.content ?? "";
+
+    // Strip any <think>...</think> blocks just in case
+    content = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
+    // Return the raw content string — the frontend will parse it
     return res.status(200).json({ content });
 
   } catch (err) {
